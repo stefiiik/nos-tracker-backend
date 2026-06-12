@@ -1,4 +1,5 @@
-toml[build]
+
+[build]
 builder = "DOCKERFILE"
 
 [deploy]
