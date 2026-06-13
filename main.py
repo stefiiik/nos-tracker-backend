@@ -9,6 +9,7 @@ import numpy as np
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
+from difflib import get_close_matches
 
 # ── Tesseract ──────────────────────────────────────────────────────────────
 # Na Linuxovém serveru je tesseract v PATH, nepotřebuje plnou cestu
@@ -97,8 +98,6 @@ def dashboard():
             last_update = cur.fetchone()["to_char"]
     return {"items": items, "measurements": measurements, "last_update": last_update}
 
-
-from difflib import get_close_matches
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
