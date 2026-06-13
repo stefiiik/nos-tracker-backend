@@ -98,6 +98,8 @@ def dashboard():
     return {"items": items, "measurements": measurements, "last_update": last_update}
 
 
+from difflib import get_close_matches
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     contents = await file.read()
@@ -108,6 +110,8 @@ async def analyze(file: UploadFile = File(...)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.resize(gray, None, fx=2, fy=2)
     text = pytesseract.image_to_string(gray, config="--psm 6")
+
+    # Ceny
     prices = re.findall(r"\d{1,3}(?:,\d{3})+", text)
     numbers = [int(p.replace(",", "")) for p in prices]
     if not numbers:
@@ -115,7 +119,33 @@ async def analyze(file: UploadFile = File(...)):
     minimum = min(numbers)
     median = int(statistics.median(numbers))
     average = int(sum(numbers) / len(numbers))
-    return {"minimum": minimum, "median": median, "average": average, "count": len(numbers)}
+
+    # Název itemu
+    item_name = None
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    raw_name = None
+    for line in lines:
+        m = re.match(r"^([A-Za-zÀ-žА-я][^\d]{3,}?)\s+\d", line)
+        if m:
+            raw_name = m.group(1).strip().rstrip(".")
+            break
+
+    if raw_name:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT DISTINCT item FROM prices")
+                known = [r["item"] for r in cur.fetchall()]
+        matches = get_close_matches(raw_name, known, n=1, cutoff=0.5)
+        if matches:
+            item_name = matches[0]
+        else:
+            raw_lower = raw_name.lower()
+            for k in known:
+                if k.lower().startswith(raw_lower[:10]):
+                    item_name = k
+                    break
+
+    return {"minimum": minimum, "median": median, "average": average, "count": len(numbers), "item_name": item_name}
 
 
 @app.post("/save")
