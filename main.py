@@ -7,6 +7,7 @@ import statistics
 import re
 import numpy as np
 import psycopg2
+import json
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from difflib import get_close_matches
@@ -44,6 +45,13 @@ def init_db():
         conn.commit()
 
 init_db()
+
+# ── Known items ze souboru ─────────────────────────────────────────────────
+try:
+    with open("items.json", "r", encoding="utf-8") as f:
+        KNOWN_ITEMS = json.load(f)
+except:
+    KNOWN_ITEMS = []
 
 # ── App ────────────────────────────────────────────────────────────────────
 app = FastAPI()
@@ -130,10 +138,7 @@ async def analyze(file: UploadFile = File(...)):
             break
 
     if raw_name:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT DISTINCT item FROM prices")
-                known = [r["item"] for r in cur.fetchall()]
+        known = KNOWN_ITEMS
         matches = get_close_matches(raw_name, known, n=1, cutoff=0.5)
         if matches:
             item_name = matches[0]
