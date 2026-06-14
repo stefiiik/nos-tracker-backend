@@ -13,11 +13,10 @@ from contextlib import contextmanager
 from difflib import get_close_matches
 
 # ── Tesseract ──────────────────────────────────────────────────────────────
-# Na Linuxovém serveru je tesseract v PATH, nepotřebuje plnou cestu
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ── Database ───────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ["DATABASE_URL"]  # Railway toto nastaví automaticky
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 @contextmanager
 def get_db():
@@ -138,16 +137,32 @@ async def analyze(file: UploadFile = File(...)):
             break
 
     if raw_name:
-        known = KNOWN_ITEMS
-        matches = get_close_matches(raw_name, known, n=1, cutoff=0.5)
+        raw_lower = raw_name.lower()
+
+        # 1. Zkus items.json
+        matches = get_close_matches(raw_name, KNOWN_ITEMS, n=1, cutoff=0.5)
         if matches:
             item_name = matches[0]
         else:
-            raw_lower = raw_name.lower()
-            for k in known:
+            for k in KNOWN_ITEMS:
                 if k.lower().startswith(raw_lower[:10]):
                     item_name = k
                     break
+
+        # 2. Pokud nenašel, zkus DB (nové itemy co uživatel přidal)
+        if not item_name:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT item FROM prices")
+                    db_known = [r["item"] for r in cur.fetchall()]
+            matches = get_close_matches(raw_name, db_known, n=1, cutoff=0.5)
+            if matches:
+                item_name = matches[0]
+            else:
+                for k in db_known:
+                    if k.lower().startswith(raw_lower[:10]):
+                        item_name = k
+                        break
 
     return {"minimum": minimum, "median": median, "average": average, "count": len(numbers), "item_name": item_name}
 
