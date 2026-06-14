@@ -12,10 +12,8 @@ from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from difflib import get_close_matches
 
-# ── Tesseract ──────────────────────────────────────────────────────────────
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# ── Database ───────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ["DATABASE_URL"]
 
 @contextmanager
@@ -45,14 +43,12 @@ def init_db():
 
 init_db()
 
-# ── Known items ze souboru ─────────────────────────────────────────────────
 try:
     with open("items.json", "r", encoding="utf-8") as f:
         KNOWN_ITEMS = json.load(f)
 except:
     KNOWN_ITEMS = []
 
-# ── App ────────────────────────────────────────────────────────────────────
 app = FastAPI()
 
 app.add_middleware(
@@ -117,7 +113,6 @@ async def analyze(file: UploadFile = File(...)):
     gray = cv2.resize(gray, None, fx=2, fy=2)
     text = pytesseract.image_to_string(gray, config="--psm 6")
 
-    # Ceny
     prices = re.findall(r"\d{1,3}(?:,\d{3})+", text)
     numbers = [int(p.replace(",", "")) for p in prices]
     if not numbers:
@@ -126,7 +121,6 @@ async def analyze(file: UploadFile = File(...)):
     median = int(statistics.median(numbers))
     average = int(sum(numbers) / len(numbers))
 
-    # Název itemu
     item_name = None
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     raw_name = None
@@ -139,7 +133,6 @@ async def analyze(file: UploadFile = File(...)):
     if raw_name:
         raw_lower = raw_name.lower()
 
-        # 1. Zkus items.json
         matches = get_close_matches(raw_name, KNOWN_ITEMS, n=1, cutoff=0.5)
         if matches:
             item_name = matches[0]
@@ -149,7 +142,6 @@ async def analyze(file: UploadFile = File(...)):
                     item_name = k
                     break
 
-        # 2. Pokud nenašel, zkus DB (nové itemy co uživatel přidal)
         if not item_name:
             with get_db() as conn:
                 with conn.cursor() as cur:
@@ -235,4 +227,5 @@ def analyze_price(item: str):
         "last_min": last["min_price"],
         "last_avg": last["average_price"],
         "history": medians,
+        "dates": [r["date"] for r in rows],
     }
